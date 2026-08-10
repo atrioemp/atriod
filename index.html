@@ -86,8 +86,7 @@ const STORAGE_KEY = 'atrio:clientes';
 const AGREGADOS_KEY = 'atrio:solicitudes-agregadas';
 const ESTADO_SOLICITUDES_KEY = 'atrio:estado-solicitudes';
 
-const SOLICITUDES_SINCRONIZADAS = '10 ago 2026, 11:25';
-const SOLICITUDES_INICIALES = [];
+const SOLICITUDES_SINCRONIZADAS = 'conectado en vivo con Airtable';
 
 const SUGERENCIAS_INICIALES = [
   { id: 'sug-1', negocio: 'Electricistas 24 horas Madrid', tipo: 'Electricista', contacto: '+34 666 56 42 06', notas: 'Solo 3 reseñas en Google — negocio muy nuevo, buen candidato.' },
@@ -137,7 +136,20 @@ function RastreadorClientes() {
   const [nuevo, setNuevo] = useState({ negocio: '', tipo: '', contacto: '', notas: '' });
   const menuRef = useRef(null);
 
-  const [solicitudes] = useState(SOLICITUDES_INICIALES);
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [cargandoSolicitudes, setCargandoSolicitudes] = useState(true);
+
+  async function cargarSolicitudes() {
+    setCargandoSolicitudes(true);
+    try {
+      const res = await fetch('/.netlify/functions/listar-solicitudes');
+      const data = await res.json();
+      setSolicitudes(data.records || []);
+    } catch (e) {
+      console.error('Error cargando solicitudes', e);
+    }
+    setCargandoSolicitudes(false);
+  }
   const [estadoSolicitudes, setEstadoSolicitudes] = useState({});
   const [solicitudesAgregadas, setSolicitudesAgregadas] = useState([]);
 
@@ -157,6 +169,7 @@ function RastreadorClientes() {
       } catch (e) {}
       setLoaded(true);
     })();
+    cargarSolicitudes();
   }, []);
 
   useEffect(() => {
@@ -245,7 +258,7 @@ function RastreadorClientes() {
     if (nombre && f['Negocio']) partesNotas.push(`Contacto: ${nombre}`);
     if (f['Plan']) partesNotas.push(`Plan: ${f['Plan']}`);
     if (f['Estilo']) partesNotas.push(`Estilo: ${f['Estilo']}`);
-    if (f['Web de referencia']) partesNotas.push(`Referencia: ${f['Web de referencia']}`);
+    if (f['Referencia']) partesNotas.push(`Referencia: ${f['Referencia']}`);
     if (f['Mensaje']) partesNotas.push(f['Mensaje']);
     const entrada = {
       id: Date.now().toString(),
@@ -388,9 +401,15 @@ function RastreadorClientes() {
           <div>
             <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
               <h1 className="font-bold text-lg text-slate-800">Solicitudes</h1>
+              <button
+                onClick={cargarSolicitudes}
+                className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 font-medium px-3 py-1.5 rounded-full text-xs hover:border-sky-300 hover:text-sky-600 transition"
+              >
+                {cargandoSolicitudes ? 'Actualizando...' : 'Actualizar'}
+              </button>
             </div>
             <p className="text-sm text-slate-400 mb-6">
-              Respuestas del formulario "Solicita tu web" · sincronizado {SOLICITUDES_SINCRONIZADAS}
+              Respuestas del formulario "Solicita tu web" · {SOLICITUDES_SINCRONIZADAS}
             </p>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
@@ -477,9 +496,9 @@ function RastreadorClientes() {
                             <p className="line-clamp-3">{f['Mensaje'] || '—'}</p>
                           </td>
                           <td className="px-4 py-3 text-slate-500">
-                            {f['Web de referencia'] ? (
+                            {f['Referencia'] ? (
                               <a
-                                href={f['Web de referencia'].startsWith('http') ? f['Web de referencia'] : `https://${f['Web de referencia']}`}
+                                href={f['Referencia'].startsWith('http') ? f['Referencia'] : `https://${f['Referencia']}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1 text-blue-500 hover:text-blue-700 whitespace-nowrap"
