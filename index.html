@@ -78,6 +78,11 @@ const RotateCcw = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><poly
 const Euro = (p) => <Icon {...p}><path d="M14 4a7 7 0 1 0 0 16 7 7 0 0 1-7-7"/><line x1="4" y1="10" x2="14" y2="10"/><line x1="4" y1="14" x2="12" y2="14"/></Icon>;
 const Star = (p) => <Icon {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></Icon>;
 const Trash = (p) => <Icon {...p}><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></Icon>;
+const Flag = (p) => <Icon {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></Icon>;
+const LinkIcon = (p) => <Icon {...p}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></Icon>;
+const Tag = (p) => <Icon {...p}><path d="M20.59 13.41L13.42 20.6a2 2 0 0 1-2.83 0L2.5 12.5V4a1.5 1.5 0 0 1 1.5-1.5h8.5l8.09 8.09a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r="1.5"/></Icon>;
+const RefreshCw = (p) => <Icon {...p}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></Icon>;
+const CreditCard = (p) => <Icon {...p}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></Icon>;
 
 const ESTADOS = [
   { key: 'por_contactar', label: 'Por contactar', dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-600 border-slate-300' },
@@ -86,6 +91,27 @@ const ESTADOS = [
   { key: 'cerrado', label: 'Cerrado', dot: 'bg-emerald-400', pill: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
   { key: 'no_interesado', label: 'No interesado', dot: 'bg-rose-300', pill: 'bg-rose-50 text-rose-500 border-rose-200' },
 ];
+
+const PRIORIDADES = [
+  { key: 'alta', label: 'Prioridad alta', color: 'text-rose-500', bg: 'bg-rose-50 border-rose-200 text-rose-600' },
+  { key: 'media', label: 'Prioridad media', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-200 text-amber-600' },
+  { key: 'baja', label: 'Prioridad baja', color: 'text-slate-400', bg: 'bg-slate-50 border-slate-200 text-slate-500' },
+];
+
+const ESTADOS_PAGO = [
+  { key: 'sin_pagar', label: 'Sin pagar', pill: 'bg-rose-50 text-rose-600 border-rose-200' },
+  { key: 'señal', label: 'Señal pagada', pill: 'bg-amber-50 text-amber-700 border-amber-300' },
+  { key: 'pagado', label: 'Pagado del todo', pill: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+];
+
+const ORIGENES = ['Sugerencia IA', 'Solicitud web', 'Referido', 'Redes sociales', 'Puerta fría', 'Otro'];
+
+function prioridadInfo(key) {
+  return PRIORIDADES.find((p) => p.key === key) || null;
+}
+function pagoInfo(key) {
+  return ESTADOS_PAGO.find((p) => p.key === key) || ESTADOS_PAGO[0];
+}
 
 const STORAGE_KEY = 'atrio:clientes';
 const AGREGADOS_KEY = 'atrio:solicitudes-agregadas';
@@ -147,7 +173,7 @@ function RastreadorClientes() {
   const [filtro, setFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState('recientes');
-  const [nuevo, setNuevo] = useState({ negocio: '', tipo: '', contacto: '', notas: '', precio: '' });
+  const [nuevo, setNuevo] = useState({ negocio: '', tipo: '', contacto: '', notas: '', precio: '', plazo: '', prioridad: '', origen: '', etiquetas: '', mantenimiento: false, precioMantenimiento: '' });
   const menuRef = useRef(null);
 
   const [solicitudes, setSolicitudes] = useState([]);
@@ -282,6 +308,14 @@ function RastreadorClientes() {
       contacto: nuevo.contacto.trim(),
       notas: nuevo.notas.trim(),
       precio: nuevo.precio,
+      plazo: nuevo.plazo,
+      prioridad: nuevo.prioridad,
+      origen: nuevo.origen,
+      etiquetas: nuevo.etiquetas.trim(),
+      mantenimiento: nuevo.mantenimiento,
+      precioMantenimiento: nuevo.precioMantenimiento,
+      link: '',
+      estadoPago: 'sin_pagar',
       estado: 'por_contactar',
       fecha: new Date().toLocaleDateString('es-ES'),
       fechaOrden: Date.now(),
@@ -289,7 +323,7 @@ function RastreadorClientes() {
       archivado: false,
     };
     guardar([entrada, ...clientes]);
-    setNuevo({ negocio: '', tipo: '', contacto: '', notas: '', precio: '' });
+    setNuevo({ negocio: '', tipo: '', contacto: '', notas: '', precio: '', plazo: '', prioridad: '', origen: '', etiquetas: '', mantenimiento: false, precioMantenimiento: '' });
     setShowForm(false);
   }
 
@@ -309,6 +343,14 @@ function RastreadorClientes() {
       contacto: sug.contacto,
       notas: sug.notas,
       precio: '',
+      plazo: '',
+      prioridad: '',
+      origen: 'Sugerencia IA',
+      etiquetas: '',
+      mantenimiento: false,
+      precioMantenimiento: '',
+      link: '',
+      estadoPago: 'sin_pagar',
       estado: 'por_contactar',
       fecha: new Date().toLocaleDateString('es-ES'),
       fechaOrden: Date.now(),
@@ -395,6 +437,14 @@ function RastreadorClientes() {
       contacto,
       notas: partesNotas.join(' · '),
       precio: '',
+      plazo: '',
+      prioridad: '',
+      origen: 'Solicitud web',
+      etiquetas: '',
+      mantenimiento: false,
+      precioMantenimiento: '',
+      link: '',
+      estadoPago: 'sin_pagar',
       estado: 'por_contactar',
       fecha: new Date().toLocaleDateString('es-ES'),
       fechaOrden: Date.now(),
@@ -458,9 +508,14 @@ function RastreadorClientes() {
   }
 
   function exportarCSV() {
-    const filas = [['Negocio', 'Tipo', 'Contacto', 'Estado', 'Precio', 'Ya hecho', 'Próximo contacto', 'Notas', 'Añadido']];
+    const filas = [['Negocio', 'Tipo', 'Contacto', 'Estado', 'Precio', 'Estado de pago', 'Mantenimiento mensual', 'Prioridad', 'Origen', 'Etiquetas', 'Link web', 'Plazo entrega', 'Ya hecho', 'Próximo contacto', 'Notas', 'Añadido']];
     clientes.forEach((c) => {
-      filas.push([c.negocio, c.tipo, c.contacto, estadoInfo(c.estado).label, c.precio || '', c.archivado ? 'Sí' : 'No', c.proximoContacto || '', c.notas, c.fecha]);
+      filas.push([
+        c.negocio, c.tipo, c.contacto, estadoInfo(c.estado).label, c.precio || '',
+        pagoInfo(c.estadoPago).label, c.mantenimiento ? (c.precioMantenimiento || '0') + ' €/mes' : '',
+        c.prioridad ? (prioridadInfo(c.prioridad) || {}).label || '' : '', c.origen || '', c.etiquetas || '',
+        c.link || '', c.plazo || '', c.archivado ? 'Sí' : 'No', c.proximoContacto || '', c.notas, c.fecha,
+      ]);
     });
     const csv = filas.map((f) => f.map((v) => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -499,6 +554,18 @@ function RastreadorClientes() {
   const terminados = useMemo(() => clientes.filter((c) => c.archivado), [clientes]);
   const totalGanado = useMemo(
     () => terminados.reduce((sum, c) => sum + (parseFloat(c.precio) || 0), 0),
+    [terminados]
+  );
+  const ingresosMensuales = useMemo(
+    () => clientes.reduce((sum, c) => sum + (c.mantenimiento ? (parseFloat(c.precioMantenimiento) || 0) : 0), 0),
+    [clientes]
+  );
+  const pendienteDeCobro = useMemo(
+    () => terminados.reduce((sum, c) => {
+      if (c.estadoPago === 'pagado') return sum;
+      const precio = parseFloat(c.precio) || 0;
+      return sum + (c.estadoPago === 'señal' ? precio / 2 : precio);
+    }, 0),
     [terminados]
   );
 
@@ -817,12 +884,22 @@ function RastreadorClientes() {
             <h1 className="font-bold text-lg text-slate-800 mb-1">Ya hechos</h1>
             <p className="text-sm text-slate-500 mb-4">Negocios a los que ya les hiciste la web. Aquí no aparecen en tu lista de seguimiento.</p>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 mb-6 flex items-center justify-between flex-wrap gap-2">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <div className="text-xs text-emerald-600 font-medium">Total ganado</div>
-                <div className="text-3xl font-bold text-emerald-700">{formatearPrecio(totalGanado) || '0 €'}</div>
+                <div className="text-2xl font-bold text-emerald-700">{formatearPrecio(totalGanado) || '0 €'}</div>
+                <div className="text-xs text-emerald-600 mt-0.5">{terminados.length} {terminados.length === 1 ? 'web hecha' : 'webs hechas'}</div>
               </div>
-              <div className="text-sm text-emerald-600">{terminados.length} {terminados.length === 1 ? 'web hecha' : 'webs hechas'}</div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-xs text-amber-600 font-medium">Pendiente de cobro</div>
+                <div className="text-2xl font-bold text-amber-700">{formatearPrecio(pendienteDeCobro) || '0 €'}</div>
+                <div className="text-xs text-amber-600 mt-0.5">Según señal/pagado que marques</div>
+              </div>
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                <div className="text-xs text-sky-600 font-medium">Ingresos recurrentes</div>
+                <div className="text-2xl font-bold text-sky-700">{formatearPrecio(ingresosMensuales) || '0 €'}<span className="text-sm font-medium">/mes</span></div>
+                <div className="text-xs text-sky-600 mt-0.5">Por mantenimientos activos</div>
+              </div>
             </div>
 
             {terminados.length === 0 ? (
@@ -832,8 +909,11 @@ function RastreadorClientes() {
               </div>
             ) : (
               <div className="space-y-3">
-                {terminados.map((c) => (
-                  <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap">
+                {terminados.map((c) => {
+                  const pago = pagoInfo(c.estadoPago);
+                  return (
+                  <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="min-w-[200px]">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -842,7 +922,7 @@ function RastreadorClientes() {
                       </div>
                       {c.notas && <p className="text-xs text-slate-400 mt-1">{c.notas}</p>}
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-1.5">
                         <Euro size={14} className="text-slate-400" />
                         <input
@@ -855,6 +935,15 @@ function RastreadorClientes() {
                         />
                         <span className="text-xs text-slate-400">€</span>
                       </div>
+                      <select
+                        value={c.estadoPago || 'sin_pagar'}
+                        onChange={(e) => guardarCampo(c.id, 'estadoPago', e.target.value)}
+                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border cursor-pointer ${pago.pill}`}
+                      >
+                        {ESTADOS_PAGO.map((p) => (
+                          <option key={p.key} value={p.key}>{p.label}</option>
+                        ))}
+                      </select>
                       <button
                         onClick={() => desarchivar(c.id)}
                         className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition px-2 py-1.5"
@@ -870,8 +959,48 @@ function RastreadorClientes() {
                         <Trash2 size={16} />
                       </button>
                     </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap mt-3">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                        <LinkIcon size={13} className="text-slate-400" />
+                        <input
+                          value={c.link || ''}
+                          onChange={(e) => actualizarCampo(c.id, 'link', e.target.value)}
+                          onBlur={(e) => guardarCampo(c.id, 'link', e.target.value)}
+                          placeholder="Link de la web ya publicada (ej: https://...)"
+                          className="flex-1 text-xs border border-slate-100 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-400 bg-slate-50 text-slate-600"
+                        />
+                        {c.link && (
+                          <a href={c.link.startsWith('http') ? c.link : `https://${c.link}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 p-1">
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={!!c.mantenimiento}
+                          onChange={(e) => guardarCampo(c.id, 'mantenimiento', e.target.checked)}
+                        />
+                        <RefreshCw size={12} /> Mantenimiento
+                      </label>
+                      {c.mantenimiento && (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={c.precioMantenimiento || ''}
+                            onChange={(e) => actualizarCampo(c.id, 'precioMantenimiento', e.target.value)}
+                            onBlur={(e) => guardarCampo(c.id, 'precioMantenimiento', e.target.value)}
+                            placeholder="0"
+                            className="w-16 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 text-slate-600"
+                          />
+                          <span className="text-xs text-slate-400">€/mes</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1012,14 +1141,21 @@ function RastreadorClientes() {
               const info = estadoInfo(c.estado);
               const vencido = esVencido(c.proximoContacto);
               const esEmail = c.contacto && c.contacto.includes('@');
+              const prio = prioridadInfo(c.prioridad);
+              const pago = pagoInfo(c.estadoPago);
               return (
-                <div key={c.id} className={`bg-white border rounded-2xl p-4 hover:shadow-md transition ${vencido ? 'border-amber-300' : 'border-slate-200'}`}>
+                <div key={c.id} className={`bg-white border rounded-2xl p-4 hover:shadow-md transition ${prio && prio.key === 'alta' ? 'border-rose-200' : vencido ? 'border-amber-300' : 'border-slate-200'}`}>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-[200px]">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`w-2 h-2 rounded-full ${info.dot}`} />
                         <h3 className="font-semibold text-slate-800">{c.negocio}</h3>
                         {c.tipo && <span className="text-xs text-slate-400">· {c.tipo}</span>}
+                        {prio && (
+                          <span className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${prio.bg}`}>
+                            <Flag size={10} /> {prio.label.replace('Prioridad ', '')}
+                          </span>
+                        )}
                       </div>
 
                       {c.contacto && (
@@ -1032,7 +1168,20 @@ function RastreadorClientes() {
                         </a>
                       )}
 
-                      <div className="text-xs text-slate-400 mt-1">Añadido: {c.fecha}</div>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        <span className="text-xs text-slate-400">Añadido: {c.fecha}</span>
+                        {c.origen && <span className="text-xs text-slate-300">· {c.origen}</span>}
+                      </div>
+
+                      {c.etiquetas && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                          {c.etiquetas.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
+                            <span key={t} className="flex items-center gap-1 text-[10px] bg-sky-50 text-sky-600 border border-sky-100 px-1.5 py-0.5 rounded-full">
+                              <Tag size={9} /> {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1087,6 +1236,76 @@ function RastreadorClientes() {
                       />
                       <span className="text-xs text-slate-400">€</span>
                     </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-slate-400" />
+                      <label className="text-xs text-slate-500">Plazo:</label>
+                      <input
+                        type="date"
+                        value={c.plazo || ''}
+                        onChange={(e) => guardarCampo(c.id, 'plazo', e.target.value)}
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 text-slate-600"
+                      />
+                    </div>
+                    <select
+                      value={c.estadoPago || 'sin_pagar'}
+                      onChange={(e) => guardarCampo(c.id, 'estadoPago', e.target.value)}
+                      className={`flex items-center text-xs font-medium px-2.5 py-1.5 rounded-full border cursor-pointer ${pago.pill}`}
+                    >
+                      {ESTADOS_PAGO.map((p) => (
+                        <option key={p.key} value={p.key}>{p.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={c.prioridad || ''}
+                      onChange={(e) => guardarCampo(c.id, 'prioridad', e.target.value)}
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-full border border-slate-200 text-slate-500 cursor-pointer"
+                    >
+                      <option value="">Sin prioridad</option>
+                      {PRIORIDADES.map((p) => (
+                        <option key={p.key} value={p.key}>{p.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={c.origen || ''}
+                      onChange={(e) => guardarCampo(c.id, 'origen', e.target.value)}
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-full border border-slate-200 text-slate-500 cursor-pointer"
+                    >
+                      <option value="">¿De dónde salió?</option>
+                      {ORIGENES.map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <input
+                      value={c.etiquetas || ''}
+                      onChange={(e) => actualizarCampo(c.id, 'etiquetas', e.target.value)}
+                      onBlur={(e) => guardarCampo(c.id, 'etiquetas', e.target.value)}
+                      placeholder="Etiquetas separadas por coma (ej: urgente, panadería)"
+                      className="flex-1 min-w-[180px] text-xs border border-slate-100 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-400 bg-slate-50 text-slate-600"
+                    />
+                    <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked={!!c.mantenimiento}
+                        onChange={(e) => guardarCampo(c.id, 'mantenimiento', e.target.checked)}
+                      />
+                      <RefreshCw size={12} /> Mantenimiento mensual
+                    </label>
+                    {c.mantenimiento && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={c.precioMantenimiento || ''}
+                          onChange={(e) => actualizarCampo(c.id, 'precioMantenimiento', e.target.value)}
+                          onBlur={(e) => guardarCampo(c.id, 'precioMantenimiento', e.target.value)}
+                          placeholder="0"
+                          className="w-16 text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 text-slate-600"
+                        />
+                        <span className="text-xs text-slate-400">€/mes</span>
+                      </div>
+                    )}
                   </div>
 
                   <textarea
@@ -1110,7 +1329,7 @@ function RastreadorClientes() {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-lg text-slate-800">Nuevo negocio</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
@@ -1167,6 +1386,72 @@ function RastreadorClientes() {
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500">Plazo de entrega</label>
+                  <input
+                    type="date"
+                    value={nuevo.plazo}
+                    onChange={(e) => setNuevo({ ...nuevo, plazo: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500">Prioridad</label>
+                  <select
+                    value={nuevo.prioridad}
+                    onChange={(e) => setNuevo({ ...nuevo, prioridad: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
+                  >
+                    <option value="">Sin prioridad</option>
+                    {PRIORIDADES.map((p) => (
+                      <option key={p.key} value={p.key}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500">¿De dónde salió?</label>
+                <select
+                  value={nuevo.origen}
+                  onChange={(e) => setNuevo({ ...nuevo, origen: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
+                >
+                  <option value="">Selecciona un origen</option>
+                  {ORIGENES.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500">Etiquetas (opcional)</label>
+                <input
+                  value={nuevo.etiquetas}
+                  onChange={(e) => setNuevo({ ...nuevo, etiquetas: e.target.value })}
+                  placeholder="Separadas por coma, ej: urgente, panadería"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={nuevo.mantenimiento}
+                  onChange={(e) => setNuevo({ ...nuevo, mantenimiento: e.target.checked })}
+                />
+                <RefreshCw size={13} /> Incluye mantenimiento mensual
+              </label>
+              {nuevo.mantenimiento && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500">Precio del mantenimiento (€/mes)</label>
+                  <input
+                    type="number"
+                    value={nuevo.precioMantenimiento}
+                    onChange={(e) => setNuevo({ ...nuevo, precioMantenimiento: e.target.value })}
+                    placeholder="Ej: 15"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
             </div>
 
             <button
