@@ -83,6 +83,8 @@ const LinkIcon = (p) => <Icon {...p}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0
 const Tag = (p) => <Icon {...p}><path d="M20.59 13.41L13.42 20.6a2 2 0 0 1-2.83 0L2.5 12.5V4a1.5 1.5 0 0 1 1.5-1.5h8.5l8.09 8.09a2 2 0 0 1 0 2.82z"/><circle cx="7.5" cy="7.5" r="1.5"/></Icon>;
 const RefreshCw = (p) => <Icon {...p}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></Icon>;
 const CreditCard = (p) => <Icon {...p}><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></Icon>;
+const Save = (p) => <Icon {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></Icon>;
+const Upload = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></Icon>;
 
 const ESTADOS = [
   { key: 'por_contactar', label: 'Por contactar', dot: 'bg-slate-400', pill: 'bg-slate-100 text-slate-600 border-slate-300' },
@@ -158,6 +160,18 @@ function formatearPrecio(v) {
   return n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
 }
 
+function esTelefono(contacto) {
+  return !!contacto && !contacto.includes('@');
+}
+
+function linkWhatsApp(c) {
+  if (!esTelefono(c.contacto)) return null;
+  let numero = c.contacto.replace(/[^\d+]/g, '');
+  if (!numero.startsWith('+')) numero = (numero.length === 9 ? '34' : '') + numero; // asume España si son 9 dígitos
+  const mensaje = `Hola! Soy de Atrio, hago páginas web para negocios locales. Vi ${c.negocio} y creo que podría ayudaros a conseguir más clientes con una web propia. ¿Tenéis 2 minutos para contaros cómo funciona?`;
+  return `https://wa.me/${numero.replace('+', '')}?text=${encodeURIComponent(mensaje)}`;
+}
+
 function RastreadorClientes() {
   const [clientes, setClientes] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -171,10 +185,13 @@ function RastreadorClientes() {
   const [zonaBusqueda, setZonaBusqueda] = useState('');
   const [errorBusqueda, setErrorBusqueda] = useState(null);
   const [filtro, setFiltro] = useState('todos');
+  const [filtroPrioridad, setFiltroPrioridad] = useState('todas');
+  const [filtroOrigen, setFiltroOrigen] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState('recientes');
   const [nuevo, setNuevo] = useState({ negocio: '', tipo: '', contacto: '', notas: '', precio: '', plazo: '', prioridad: '', origen: '', etiquetas: '', mantenimiento: false, precioMantenimiento: '' });
   const menuRef = useRef(null);
+  const backupInputRef = useRef(null);
 
   const [solicitudes, setSolicitudes] = useState([]);
   const [cargandoSolicitudes, setCargandoSolicitudes] = useState(true);
@@ -370,8 +387,13 @@ function RastreadorClientes() {
   async function ejecutarBusquedaZona(zona) {
     try {
       const res = await fetch(`/.netlify/functions/buscar-sugerencias?zona=${encodeURIComponent(zona)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error buscando sugerencias');
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error('El servidor no respondió correctamente (¿está la función desplegada en Netlify?).');
+      }
+      if (!res.ok) throw new Error(data.error || `Error del servidor (código ${res.status}).`);
       let nuevasCount = 0;
       setSugerenciasIA((actuales) => {
         const existentesIds = new Set(actuales.map((s) => s.id));
@@ -384,7 +406,10 @@ function RastreadorClientes() {
       return { ok: true, nuevasCount };
     } catch (e) {
       console.error('Error en ejecutarBusquedaZona', e);
-      return { ok: false };
+      const mensaje = e && e.message && e.message !== 'Failed to fetch'
+        ? e.message
+        : 'No se pudo conectar con el servidor de búsqueda. Comprueba tu conexión o que la app esté desplegada en Netlify.';
+      return { ok: false, mensaje };
     }
   }
 
@@ -395,7 +420,7 @@ function RastreadorClientes() {
     setErrorBusqueda(null);
     const resultado = await ejecutarBusquedaZona(zona);
     if (!resultado.ok) {
-      setErrorBusqueda('No se pudo completar la búsqueda. Inténtalo de nuevo en unos segundos.');
+      setErrorBusqueda(resultado.mensaje || 'No se pudo completar la búsqueda. Inténtalo de nuevo en unos segundos.');
     } else if (resultado.nuevasCount === 0) {
       setErrorBusqueda('No se han encontrado negocios nuevos sin web en esa zona. Prueba con otra.');
     }
@@ -527,12 +552,66 @@ function RastreadorClientes() {
     URL.revokeObjectURL(url);
   }
 
+  // Copia de seguridad completa: todo lo que hay en este navegador (todo vive en local,
+  // así que sin esto se pierde todo si cambias de móvil/navegador o borras datos).
+  function exportarBackup() {
+    const backup = {
+      version: 1,
+      fecha: new Date().toISOString(),
+      clientes,
+      papelera,
+      zonasFavoritas,
+      sugerenciasIA,
+      sugerenciasUsadas,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `atrio-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importarBackup(archivo) {
+    const lector = new FileReader();
+    lector.onload = async (e) => {
+      try {
+        const backup = JSON.parse(e.target.result);
+        if (!backup || !Array.isArray(backup.clientes)) throw new Error('Archivo no válido');
+        if (!confirm(`Esto va a reemplazar tu lista actual (${clientes.length} negocios) por la del backup (${backup.clientes.length} negocios). ¿Seguro?`)) return;
+        await guardar(backup.clientes || []);
+        await guardarPapelera(backup.papelera || []);
+        await guardarZonasFavoritas(backup.zonasFavoritas || []);
+        if (backup.sugerenciasIA) {
+          setSugerenciasIA(backup.sugerenciasIA);
+          await window.storage.set(SUGERENCIAS_IA_KEY, JSON.stringify(backup.sugerenciasIA), false);
+        }
+        if (backup.sugerenciasUsadas) {
+          setSugerenciasUsadas(backup.sugerenciasUsadas);
+          await window.storage.set(SUGERENCIAS_USADAS_KEY, JSON.stringify(backup.sugerenciasUsadas), false);
+        }
+        alert('Backup restaurado correctamente.');
+      } catch (err) {
+        alert('No se pudo leer ese archivo como backup de Atrio.');
+      }
+    };
+    lector.readAsText(archivo);
+  }
+
   const visibles = useMemo(() => {
     let lista = clientes.filter((c) => {
       if (c.archivado) return false;
       const pasaFiltro = filtro === 'todos' || c.estado === filtro;
-      const pasaBusqueda = c.negocio.toLowerCase().includes(busqueda.toLowerCase());
-      return pasaFiltro && pasaBusqueda;
+      const pasaPrioridad = filtroPrioridad === 'todas' || c.prioridad === filtroPrioridad;
+      const pasaOrigen = filtroOrigen === 'todos' || c.origen === filtroOrigen;
+      const q = busqueda.toLowerCase();
+      const pasaBusqueda = !q
+        || c.negocio.toLowerCase().includes(q)
+        || (c.notas || '').toLowerCase().includes(q)
+        || (c.etiquetas || '').toLowerCase().includes(q)
+        || (c.tipo || '').toLowerCase().includes(q);
+      return pasaFiltro && pasaPrioridad && pasaOrigen && pasaBusqueda;
     });
     if (orden === 'recientes') lista = [...lista].sort((a, b) => (b.fechaOrden || 0) - (a.fechaOrden || 0));
     if (orden === 'antiguos') lista = [...lista].sort((a, b) => (a.fechaOrden || 0) - (b.fechaOrden || 0));
@@ -541,8 +620,15 @@ function RastreadorClientes() {
       if (!b.proximoContacto) return -1;
       return new Date(a.proximoContacto) - new Date(b.proximoContacto);
     });
+    if (orden === 'prioridad') {
+      const peso = { alta: 0, media: 1, baja: 2, '': 3 };
+      lista = [...lista].sort((a, b) => (peso[a.prioridad || ''] ?? 3) - (peso[b.prioridad || ''] ?? 3));
+    }
+    if (orden === 'precio') lista = [...lista].sort((a, b) => (parseFloat(b.precio) || 0) - (parseFloat(a.precio) || 0));
     return lista;
-  }, [clientes, filtro, busqueda, orden]);
+  }, [clientes, filtro, filtroPrioridad, filtroOrigen, busqueda, orden]);
+
+  const origenesUsados = useMemo(() => Array.from(new Set(clientes.map((c) => c.origen).filter(Boolean))), [clientes]);
 
   const conteos = ESTADOS.reduce((acc, e) => {
     acc[e.key] = clientes.filter((c) => !c.archivado && c.estado === e.key).length;
@@ -1060,9 +1146,31 @@ function RastreadorClientes() {
             <button
               onClick={exportarCSV}
               className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 font-medium px-3 py-2 rounded-full text-sm hover:border-sky-300 hover:text-sky-600 transition"
+              title="Exportar tu lista en CSV (para Excel/Sheets)"
             >
-              <Download size={15} /> Exportar
+              <Download size={15} /> CSV
             </button>
+            <button
+              onClick={exportarBackup}
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 font-medium px-3 py-2 rounded-full text-sm hover:border-sky-300 hover:text-sky-600 transition"
+              title="Descargar una copia de seguridad completa (por si cambias de móvil o navegador)"
+            >
+              <Save size={15} /> Backup
+            </button>
+            <button
+              onClick={() => backupInputRef.current && backupInputRef.current.click()}
+              className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 font-medium px-3 py-2 rounded-full text-sm hover:border-amber-300 hover:text-amber-600 transition"
+              title="Restaurar desde un archivo de backup"
+            >
+              <Upload size={15} /> Restaurar
+            </button>
+            <input
+              ref={backupInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => { if (e.target.files[0]) importarBackup(e.target.files[0]); e.target.value = ''; }}
+            />
             <button
               onClick={() => setShowForm(true)}
               className="flex items-center gap-2 bg-blue-500 text-white font-semibold px-4 py-2 rounded-full text-sm hover:bg-blue-600 transition shadow-sm shadow-blue-200"
@@ -1102,13 +1210,13 @@ function RastreadorClientes() {
           ))}
         </div>
 
-        <div className="flex gap-3 mb-6 flex-wrap">
+        <div className="flex gap-3 mb-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar negocio..."
+              placeholder="Buscar por nombre, notas o etiqueta..."
               className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-white text-sm focus:outline-none focus:border-blue-400"
             />
           </div>
@@ -1122,8 +1230,41 @@ function RastreadorClientes() {
               <option value="recientes">Más recientes</option>
               <option value="antiguos">Más antiguos</option>
               <option value="proximo">Próximo contacto</option>
+              <option value="prioridad">Prioridad</option>
+              <option value="precio">Precio más alto</option>
             </select>
           </div>
+        </div>
+
+        <div className="flex gap-2 mb-6 flex-wrap">
+          <select
+            value={filtroPrioridad}
+            onChange={(e) => setFiltroPrioridad(e.target.value)}
+            className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-500 focus:outline-none focus:border-blue-400 cursor-pointer"
+          >
+            <option value="todas">Cualquier prioridad</option>
+            {PRIORIDADES.map((p) => (
+              <option key={p.key} value={p.key}>{p.label}</option>
+            ))}
+          </select>
+          <select
+            value={filtroOrigen}
+            onChange={(e) => setFiltroOrigen(e.target.value)}
+            className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-500 focus:outline-none focus:border-blue-400 cursor-pointer"
+          >
+            <option value="todos">Cualquier origen</option>
+            {origenesUsados.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+          {(filtroPrioridad !== 'todas' || filtroOrigen !== 'todos' || busqueda) && (
+            <button
+              onClick={() => { setFiltroPrioridad('todas'); setFiltroOrigen('todos'); setBusqueda(''); }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs text-slate-400 hover:text-rose-500 hover:border-rose-200 transition"
+            >
+              <X size={12} /> Quitar filtros
+            </button>
+          )}
         </div>
 
         {visibles.length === 0 ? (
@@ -1159,13 +1300,26 @@ function RastreadorClientes() {
                       </div>
 
                       {c.contacto && (
-                        <a
-                          href={esEmail ? `mailto:${c.contacto}` : `tel:${c.contacto.replace(/\s/g, '')}`}
-                          className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-700 mt-1 w-fit"
-                        >
-                          {esEmail ? <Mail size={13} /> : <Phone size={13} />}
-                          {c.contacto}
-                        </a>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <a
+                            href={esEmail ? `mailto:${c.contacto}` : `tel:${c.contacto.replace(/\s/g, '')}`}
+                            className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-700 w-fit"
+                          >
+                            {esEmail ? <Mail size={13} /> : <Phone size={13} />}
+                            {c.contacto}
+                          </a>
+                          {linkWhatsApp(c) && (
+                            <a
+                              href={linkWhatsApp(c)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full"
+                              title="Abrir WhatsApp con un mensaje de presentación ya escrito"
+                            >
+                              <Phone size={11} /> WhatsApp
+                            </a>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex items-center gap-2 flex-wrap mt-1">
